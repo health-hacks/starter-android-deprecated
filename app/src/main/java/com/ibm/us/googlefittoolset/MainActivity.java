@@ -53,6 +53,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     public static final String TAG = "GoogleFitToolSet";
 
+    //kjkjh
+
     private GoogleApiClient mClient = null;
 
     TextView tv_info;
