@@ -1,0 +1,40 @@
+apply plugin: 'com.android.application'
+
+android {
+    signingConfigs {
+        config {
+            keyAlias 'googlefittoolset'
+            keyPassword '871004'
+            storeFile file('/Users/thao/AndroidStudioProjects/keystore/GoogleKeyStore.jks')
+            storePassword '871004'
+        }
+    }
+    compileSdkVersion 23
+    buildToolsVersion "24.0.1"
+    defaultConfig {
+        applicationId "com.ibm.us.googlefittoolset"
+        minSdkVersion 21
+        targetSdkVersion 23
+        versionCode 1
+        versionName "1.0"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            debuggable true
+            signingConfig signingConfigs.config
+        }
+        debug {
+            debuggable true
+            signingConfig signingConfigs.config
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    testCompile 'junit:junit:4.12'
+    compile 'com.android.support:appcompat-v7:23.4.0'
+    compile 'com.google.android.gms:play-services:9.4.0'
+}
