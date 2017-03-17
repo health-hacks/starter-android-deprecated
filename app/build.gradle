@@ -1,5 +1,7 @@
 apply plugin: 'com.android.application'
 
+apply plugin: 'realm-android'
+
 android {
     signingConfigs {
         config {
@@ -17,12 +19,14 @@ android {
         targetSdkVersion 23
         versionCode 1
         versionName "1.0"
+        // Enabling multidex support.
+        multiDexEnabled true
     }
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            debuggable true
+            debuggable false
             signingConfig signingConfigs.config
         }
         debug {

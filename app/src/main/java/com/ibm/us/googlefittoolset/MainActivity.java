@@ -1,6 +1,6 @@
 package com.ibm.us.googlefittoolset;
 
-import android.net.Uri;
+
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -12,7 +12,6 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import com.google.android.gms.appindexing.Action;
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.Scopes;
@@ -29,31 +28,42 @@ import com.google.android.gms.fitness.data.DataPoint;
 import com.google.android.gms.fitness.data.DataSet;
 import com.google.android.gms.fitness.data.Field;
 import com.google.android.gms.fitness.data.DataType;
+import com.google.android.gms.fitness.data.Session;
 import com.google.android.gms.fitness.data.Subscription;
 
+import com.google.android.gms.fitness.data.Value;
+import com.google.android.gms.fitness.request.SessionReadRequest;
 import com.google.android.gms.fitness.result.ListSubscriptionsResult;
 import com.google.android.gms.fitness.result.DataReadResult;
 
 import com.google.android.gms.fitness.request.DataReadRequest;
 
+import com.google.android.gms.fitness.result.SessionReadResult;
+import com.ibm.us.googlefittoolset.model.HealthData;
+import com.ibm.us.googlefittoolset.model.HealthDataValue;
+
 
 import java.text.DateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static java.text.DateFormat.getDateInstance;
 import static java.text.DateFormat.getTimeInstance;
 
 
+import io.realm.Realm;
+import io.realm.RealmConfiguration;
+import io.realm.RealmResults;
 
 
 public class MainActivity extends AppCompatActivity implements AdapterView.OnItemClickListener {
 
     public static final String TAG = "GoogleFitToolSet";
-
-    //kjkjhhfggbgdg
 
     private GoogleApiClient mClient = null;
 
@@ -65,12 +75,26 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     ArrayAdapter<String> listAdapter;
     int defaultResourceID = android.R.layout.simple_list_item_1;
 
-    String[] strListView = {"Weight", "Calories", "Activity Samples"};
+    String[] strListView = {"Weight", "Steps"};
+    ArrayList<String> curListContent = null;
+
+    // menu / weight / step
+    String curContent = "menu";
+
+
+    // if database loading is finished
+    boolean isDatabaseLoaded = false;
+
+
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
      * See https://g.co/AppIndexing/AndroidStudio for more information.
      */
     private GoogleApiClient client;
+
+    //Realm
+    private Realm realm;
+    private RealmConfiguration realmConfig;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,13 +106,26 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         tv_info.setMovementMethod(new ScrollingMovementMethod());
 
         tv_list_info = (TextView) findViewById(R.id.tv_list_info);
-        tv_list_info.setText("Subscribed Data Types:");
+        tv_list_info.setText("Data types:");
 
-        listAdapter = new ArrayAdapter<String>(this, defaultResourceID, strListView);
+        curListContent = new ArrayList<String>(Arrays.asList(strListView));
+
+        listAdapter = new ArrayAdapter<String>(this, defaultResourceID, curListContent);
         listView = (ListView) findViewById(R.id.listView);
         listView.setAdapter(listAdapter);
 
         listView.setOnItemClickListener(this);
+
+        /**
+         * Realm
+         */
+        // Create the Realm configuration
+        realmConfig = new RealmConfiguration.Builder(this).deleteRealmIfMigrationNeeded().build();
+        // Open the Realm for the UI thread.
+        realm = Realm.getInstance(realmConfig);
+
+        Log.e(TAG, realm.toString());
+
 
         buildFitnessClient();
         // ATTENTION: This was auto-generated to implement the App Indexing API.
@@ -102,9 +139,63 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     // Create a message handling object as an anonymous class.
     public void onItemClick(AdapterView parent, View v, int position, long id) {
-        // Do something in response to the click
-        //listAdapter.add("ADD");
-        //listAdapter.notifyDataSetChanged();
+
+        if(!isDatabaseLoaded)
+            return;
+
+        if(curContent.equals("menu")){
+            if(position==0){
+                // show weight list
+                RealmResults<HealthDataValue> healthDataValues = realm.where(HealthDataValue.class)
+                                                                    .equalTo("label", "weight").findAll();
+                String str = "<BACK";
+                listAdapter.clear();
+                listAdapter.add(str);
+
+                for(HealthDataValue result : healthDataValues){
+                    str = "Date: " + result.healthObject.date.toString() + "\n"
+                            + "Steps: " + result.value;
+
+                    listAdapter.add(str);
+                }
+                curContent = "weight";
+                tv_list_info.setText("Weight data: ");
+
+                listAdapter.notifyDataSetChanged();
+            }
+            else if(position==1){
+                // show step list
+                RealmResults<HealthDataValue> healthDataValues = realm.where(HealthDataValue.class)
+                        .equalTo("label", "step").findAll();
+                String str = "<BACK";
+                listAdapter.clear();
+                listAdapter.add(str);
+
+                for(HealthDataValue result : healthDataValues){
+                    str = "Date: " + result.healthObject.date.toString() + "\n"
+                            + "Weight (kg): " + result.value;
+
+                    listAdapter.add(str);
+                }
+                curContent = "step";
+                tv_list_info.setText("Step data: ");
+
+                listAdapter.notifyDataSetChanged();
+            }
+        }
+        else if(curContent.equals("weight") || curContent.equals("step")){
+            if(position==0){
+                //back to main menu
+                listAdapter.clear();
+                for (String str : strListView)
+                    listAdapter.add(str);
+                curContent = "menu";
+                tv_list_info.setText("Data types: ");
+
+                listAdapter.notifyDataSetChanged();
+            }
+        }
+
     }
 
 
@@ -124,6 +215,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 // ADD API and SCOPEs HERE
                 .addApi(Fitness.RECORDING_API)
                 .addApi(Fitness.HISTORY_API)
+                .addApi(Fitness.SENSORS_API)
+                .addApi(Fitness.SESSIONS_API)
+                // require permissions for for all 4 scopes
                 .addScope(new Scope(Scopes.FITNESS_ACTIVITY_READ_WRITE))
                 .addScope(new Scope(Scopes.FITNESS_BODY_READ_WRITE))
                 .addScope(new Scope(Scopes.FITNESS_NUTRITION_READ_WRITE))
@@ -139,30 +233,19 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                 // Look at some data!!
 
                                 // Subscribe to some data sources!
+                                // More data types:
+                                // https://developers.google.com/android/reference/com/google/android/gms/fitness/data/DataType
                                 subscribe(DataType.TYPE_WEIGHT);
                                 subscribe(DataType.TYPE_CALORIES_EXPENDED);
                                 subscribe(DataType.TYPE_ACTIVITY_SAMPLE);
+                                subscribe(DataType.TYPE_STEP_COUNT_CADENCE);
+                                subscribe(DataType.TYPE_STEP_COUNT_DELTA);
 
-                                // Show the list of subscriptions
-                                dumpSubscriptionsList();
+                                //Only available for Android 6.0
+                                //requires to add scope: BODY_SENSORS
+                                //subscribe(DataType.TYPE_HEART_RATE_BPM);
 
-                                //DataReadRequest readRequest = queryFitnessData();
-                                DataReadRequest readRequest = queryFitnessData(DataType.TYPE_WEIGHT);
-
-                                // [START read_dataset]
-                                // Invoke the History API to fetch the data with the query and await the result of
-                                // the read request.
-                                Fitness.HistoryApi.readData(mClient, readRequest)
-                                        .setResultCallback(new ResultCallback<DataReadResult>() {
-                                            @Override
-                                            public void onResult(DataReadResult dataReadResult) {
-                                                // For the sake of the sample, we'll print the data so we can see what we just added.
-                                                // In general, logging fitness information should be avoided for privacy reasons.
-
-                                                printData(dataReadResult);
-                                            }
-                                        });
-                                // [END read_dataset]
+                                onGoogleFitConnected();
 
                             }
 
@@ -190,6 +273,81 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                     }
                 })
                 .build();
+    }
+
+
+    /**
+     * Pulling off data from Google Fit
+     * and update local Realm DB
+     */
+    private void onGoogleFitConnected(){
+        // Show the list of subscriptions
+        dumpSubscriptionsList();
+
+        /**
+         * Read the STEP COUNT data from Google Fit
+         */
+        DataReadRequest readRequest_step = queryFitnessData(DataType.TYPE_STEP_COUNT_DELTA);
+        // Invoke the History API to fetch the data with the query and await the result of
+        // the read request.
+        Fitness.HistoryApi.readData(mClient, readRequest_step)
+                .setResultCallback(new ResultCallback<DataReadResult>() {
+                    @Override
+                    public void onResult(DataReadResult dataReadResult) {
+                        // For the sake of the sample, we'll print the data so we can see what we just added.
+                        // In general, logging fitness information should be avoided for privacy reasons.
+
+                        //printData(dataReadResult);
+
+                        // update Realm with the result
+                        for (DataSet dataSet : dataReadResult.getDataSets()) {
+                            pushDataSet2Realm(dataSet);
+                        }
+                    }
+                });
+
+
+        /**
+         * Read the WEIGHT data from Google Fit
+         */
+        DataReadRequest readRequest_weight = queryFitnessData(DataType.TYPE_WEIGHT);
+        // Invoke the History API to fetch the data with the query and await the result of
+        // the read request.
+        Fitness.HistoryApi.readData(mClient, readRequest_weight)
+                .setResultCallback(new ResultCallback<DataReadResult>() {
+                    @Override
+                    public void onResult(DataReadResult dataReadResult) {
+                        // For the sake of the sample, we'll print the data so we can see what we just added.
+                        // In general, logging fitness information should be avoided for privacy reasons.
+
+                        //printData(dataReadResult);
+
+                        // update Realm with the result
+                        for (DataSet dataSet : dataReadResult.getDataSets()) {
+                            pushDataSet2Realm(dataSet);
+                        }
+                    }
+                });
+
+
+        /**
+         * read fitness data in sessions if needed
+         */
+        /*SessionReadRequest sessionReadRequest = readFitnessSession();
+        // [START read_session]
+        // Invoke the Session API to fetch the session and await the result of
+        // the read request.
+        Fitness.SessionsApi.readSession(mClient, sessionReadRequest)
+                .setResultCallback(new ResultCallback<SessionReadResult>() {
+                    @Override
+                    public void onResult(@NonNull SessionReadResult sessionReadResult) {
+                        printSession(sessionReadResult);
+                    }
+                });
+
+        // [END read_session]*/
+
+        isDatabaseLoaded = true;
     }
 
 
@@ -280,12 +438,12 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
      */
     public static DataReadRequest queryFitnessData() {
         // [START build_read_data_request]
-        // Setting a start and end date using a range of 1 week before this moment.
+        // Setting a start and end date using a range of 3 MONTH before this moment.
         Calendar cal = Calendar.getInstance();
         Date now = new Date();
         cal.setTime(now);
         long endTime = cal.getTimeInMillis();
-        cal.add(Calendar.WEEK_OF_YEAR, -1);
+        cal.add(Calendar.MONTH, -3);    //change this if a different range is desired
         long startTime = cal.getTimeInMillis();
 
 
@@ -318,15 +476,43 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         Date now = new Date();
         cal.setTime(now);
         long endTime = cal.getTimeInMillis();
-        cal.add(Calendar.WEEK_OF_YEAR, -4);
+        cal.add(Calendar.MONTH, -3);    //change this if a different range is desired
         long startTime = cal.getTimeInMillis();
 
+        java.text.DateFormat dateFormat = getDateInstance();
+        Log.i(TAG, "Range Start: " + dateFormat.format(startTime));
+        Log.i(TAG, "Range End: " + dateFormat.format(endTime));
 
         DataReadRequest readRequest = new DataReadRequest.Builder()
                 .read(dataType)
                 .setTimeRange(startTime, endTime, TimeUnit.MILLISECONDS)
                 .build();
         // [END build_read_data_request]
+
+        return readRequest;
+    }
+
+
+    /**
+     * Return a {@link SessionReadRequest} for all speed data in the past week.
+     */
+    private SessionReadRequest readFitnessSession() {
+        Log.i(TAG, "Reading History API results for session");
+        // [START build_read_session_request]
+        // Set a start and end time for our query, using a start time of 1 week before this moment.
+        Calendar cal = Calendar.getInstance();
+        Date now = new Date();
+        cal.setTime(now);
+        long endTime = cal.getTimeInMillis();
+        cal.add(Calendar.WEEK_OF_YEAR, -1);
+        long startTime = cal.getTimeInMillis();
+
+        // Build a session read request
+        SessionReadRequest readRequest = new SessionReadRequest.Builder()
+                .setTimeInterval(startTime, endTime, TimeUnit.MILLISECONDS)
+                .read(DataType.TYPE_STEP_COUNT_DELTA)
+                .build();
+        // [END build_read_session_request]
 
         return readRequest;
     }
@@ -363,21 +549,167 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         // [END parse_read_data_result]
     }
 
+
     // [START parse_dataset]
     private static void dumpDataSet(DataSet dataSet) {
         Log.i(TAG, "Data returned for Data type: " + dataSet.getDataType().getName());
-        DateFormat dateFormat = getTimeInstance();
+
+        DateFormat dateFormat = DateFormat.getDateInstance(DateFormat.LONG, Locale.US);
+        DateFormat timeFormat = DateFormat.getTimeInstance(DateFormat.LONG, Locale.US);
 
         for (DataPoint dp : dataSet.getDataPoints()) {
             Log.i(TAG, "Data point:");
             Log.i(TAG, "\tType: " + dp.getDataType().getName());
-            Log.i(TAG, "\tStart: " + dateFormat.format(dp.getStartTime(TimeUnit.MILLISECONDS)));
-            Log.i(TAG, "\tEnd: " + dateFormat.format(dp.getEndTime(TimeUnit.MILLISECONDS)));
+            Log.i(TAG, "\tDate: " + dateFormat.format(dp.getStartTime(TimeUnit.MILLISECONDS)));
+            Log.i(TAG, "\tStart: " + timeFormat.format(dp.getStartTime(TimeUnit.MILLISECONDS)));
+            Log.i(TAG, "\tEnd: " + timeFormat.format(dp.getEndTime(TimeUnit.MILLISECONDS)));
             for (Field field : dp.getDataType().getFields()) {
                 Log.i(TAG, "\tField: " + field.getName() +
                         " Value: " + dp.getValue(field));
             }
         }
+    }
+
+
+    public static void dumpSession(Session session) {
+        DateFormat dateFormat = DateFormat.getDateInstance(DateFormat.LONG, Locale.US);
+        DateFormat timeFormat = DateFormat.getTimeInstance(DateFormat.LONG, Locale.US);
+
+        Log.i(TAG, "Data returned for Session: " + session.getName()
+                + "\n\tDescription: " + session.getDescription()
+                + "\n\tDate: " + dateFormat.format(session.getStartTime(TimeUnit.MILLISECONDS))
+                + "\n\tStart: " + timeFormat.format(session.getStartTime(TimeUnit.MILLISECONDS))
+                + "\n\tEnd: " + timeFormat.format(session.getEndTime(TimeUnit.MILLISECONDS)));
+    }
+
+
+    public static void printSession(SessionReadResult sessionReadResult) {
+        // Get a list of the sessions that match the criteria to check the result.
+        Log.i(TAG, "Session read was successful. Number of returned sessions is: "
+                + sessionReadResult.getSessions().size());
+        for (Session session : sessionReadResult.getSessions()) {
+            // Process the session
+            dumpSession(session);
+
+            // Process the data sets for this session
+            List<DataSet> dataSets = sessionReadResult.getDataSet(session);
+            for (DataSet dataSet : dataSets) {
+                dumpDataSet(dataSet);
+            }
+        }
+    }
+
+    private void pushDataSet2Realm(DataSet dataSet){
+        Log.i(TAG, "Updating Data Set in Realm: " + dataSet.getDataType().getName());
+
+        for (DataPoint dp : dataSet.getDataPoints()) {
+            pushDataPoint2Realm(dp);
+        }
+    }
+
+    private void pushDataPoint2Realm(DataPoint dataPoint) {
+
+        long timestamp = dataPoint.getEndTime(TimeUnit.MILLISECONDS);
+        String origin = dataPoint.getOriginalDataSource().getName();
+        String source = dataPoint.getDataSource().getName();
+        String dataType = dataPoint.getDataType().getName();
+        String label = null;
+        float value = 0;
+
+        // get the value associated with the first field
+        Value dpValue = dataPoint.getValue(dataPoint.getDataType().getFields().get(0));
+
+        if(dataType.equals("com.google.step_count.delta")) {
+            label = "step";
+            value = dpValue.asInt();
+        }
+        else if(dataType.equals("com.google.weight")) {
+            label = "weight";
+            value = dpValue.asFloat();
+        }
+        else{
+            Log.i(TAG, "Unexpected Data Type:" + dataType);
+            return;
+        }
+
+        String id = label + Long.toString(timestamp);
+
+
+        //check duplicates
+        RealmResults<HealthData> result = realm.where(HealthData.class).equalTo("id", id).findAll();
+        if(result.size()>0){
+            // pring log
+            Log.i(TAG, "EXISTED Data point:");
+            Log.i(TAG, "\tLabel: " + label);
+            Log.i(TAG, "\tDate: " + DateFormat.getTimeInstance(DateFormat.LONG, Locale.US)
+                    .format(dataPoint.getEndTime(TimeUnit.MILLISECONDS)));
+            Log.i(TAG, "\tValue: " + value);
+
+            return;
+        }
+
+        // creating and pushing realm objects
+        realm.beginTransaction();
+
+        HealthData healthData = realm.createObject(HealthData.class);
+        healthData.date = new Date(timestamp);
+        healthData.origin = origin;
+        healthData.source = source;
+        healthData.id = id;
+
+        HealthDataValue healthDataValue = realm.createObject(HealthDataValue.class);
+        healthDataValue.value = value;
+        healthDataValue.label = label;
+        healthDataValue.healthObject = healthData;
+
+        realm.commitTransaction();
+
+        // pring log
+        Log.i(TAG, "NEW Data point:");
+        Log.i(TAG, "\tLabel: " + label);
+        Log.i(TAG, "\tDate: " + DateFormat.getTimeInstance(DateFormat.LONG, Locale.US)
+                .format(dataPoint.getEndTime(TimeUnit.MILLISECONDS)));
+        Log.i(TAG, "\tValue: " + value);
+    }
+
+
+    /**
+     * create and push HealthData object in Realm
+     * @param timestamp
+     * @param source
+     * @param origin
+     * @param type
+     */
+    private void createHealthData(final long timestamp, final String source, final String origin, String type) {
+
+        realm.beginTransaction();
+
+        HealthData healthData = realm.createObject(HealthData.class);
+        healthData.date = new Date(timestamp);
+        healthData.origin = origin;
+        healthData.source = source;
+        healthData.id = source + Long.toString(timestamp);
+
+        realm.commitTransaction();
+    }
+
+
+    /**
+     * create and push HealthDataValue object in Realm
+     * @param healthObject
+     * @param label
+     * @param value
+     */
+    private void createHealthDataValue(HealthData healthObject, String label, float value) {
+
+        realm.beginTransaction();
+
+        HealthDataValue healthDataValue = realm.createObject(HealthDataValue.class);
+        healthDataValue.value = value;
+        healthDataValue.label = label;
+        healthDataValue.healthObject = healthObject;
+
+        realm.commitTransaction();
     }
 
 }
