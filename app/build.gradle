@@ -4,15 +4,18 @@ apply plugin: 'realm-android'
 
 android {
     signingConfigs {
-        config {
-            keyAlias 'googlefittoolset'
-            keyPassword '871004'
-            storeFile file('/Users/thao/AndroidStudioProjects/keystore/GoogleKeyStore.jks')
-            storePassword '871004'
+        // see the link below if your debug keystore does not exist
+        // http://stackoverflow.com/questions/8576732/there-is-no-debug-keystore-in-android-folder
+
+        release {
+            keyAlias 'keyAlias'
+            keyPassword 'keyPassword'
+            storePassword 'storePassword'
+            storeFile file("${rootDir}/keystores/app.keystore")
         }
     }
     compileSdkVersion 23
-    buildToolsVersion "24.0.1"
+    buildToolsVersion '25.0.0'
     defaultConfig {
         applicationId "com.ibm.us.googlefittoolset"
         minSdkVersion 21
@@ -27,11 +30,10 @@ android {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             debuggable false
-            signingConfig signingConfigs.config
+            signingConfig signingConfigs.release
         }
         debug {
             debuggable true
-            signingConfig signingConfigs.config
         }
     }
 }
