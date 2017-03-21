@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">GoogleFit Toolset</string>
-    <string name="tv_main_info">Welcome to GoogleFit Toolset</string>
+    <string name="app_name">HealthHacks Starter</string>
+    <string name="tv_main_info">Welcome to the HealthHacks Starter App</string>
 </resources>
